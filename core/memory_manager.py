@@ -1,9 +1,4 @@
 import os, gc, time, json, threading
-try:
-    import psutil
-    HAS_PSUTIL = True
-except ImportError:
-    HAS_PSUTIL = False
 
 class MemoryManager:
     def __init__(self, limit_mb=900):
@@ -14,11 +9,13 @@ class MemoryManager:
         print(f"  [MEM] Memory Manager active. Budget: {limit_mb}MB")
 
     def current_usage_mb(self):
-        if HAS_PSUTIL:
-            try:
-                return psutil.Process(os.getpid()).memory_info().rss / (1024*1024)
-            except:
-                pass
+        try:
+            with open("/proc/self/status") as f:
+                for line in f:
+                    if line.startswith("VmRSS:"):
+                        return int(line.split()[1]) / 1024
+        except:
+            pass
         return 0.0
 
     def is_safe(self):
