@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+data/knowledge_map.json
+data/learned_patterns.json
+data/master_brain/
+logs/
+*.log
