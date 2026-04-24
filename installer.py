@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-MMBA Auto-Installer
-Downloads and builds the complete brain automatically.
+MMBA Multi-Model Brain Installer v3.0.0
+Downloads ALL models automatically.
+Total brain size: ~40GB
 """
 
 import os
@@ -9,275 +10,249 @@ import sys
 import json
 import time
 import shutil
-import zipfile
-import urllib.request
-import subprocess
 import platform
+import subprocess
+import urllib.request
 from pathlib import Path
 
 BRAIN_PATH = Path("data/master_brain")
-VERSION = "1.0.0"
+MODEL_PATH = Path("data/models")
+VERSION    = "3.0.0"
 
 BANNER = """
-╔══════════════════════════════════════════════════╗
-║   MMBA — Multi-Modular Brain Architecture        ║
-║   Auto-Installer v1.0.0                         ║
-║   IHTM Department                               ║
-╚══════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════╗
+║   MMBA — Multi-Model Brain Installer v3.0.0         ║
+║   Downloading 40GB Professional AI Brain            ║
+║   IHTM Department                                   ║
+╚══════════════════════════════════════════════════════╝
 """
 
-# ── Knowledge sources (free, open datasets) ────────────────────
-KNOWLEDGE_SOURCES = {
-    "python_docs": {
-        "url": "https://docs.python.org/3/library/",
-        "type": "scrape",
-        "topics": ["functions","classes","modules","exceptions"],
+# ══════════════════════════════════════════════════════
+# ALL MODELS — Each specializes in different domain
+# Total = ~40GB on disk, ~2GB RAM (disk-mapped)
+# ══════════════════════════════════════════════════════
+MODELS = {
+
+    # ── 1. REASONING BRAIN (Main thinker) ─────────────
+    # Best for: complex decisions, planning, analysis
+    # RAM: 512MB  Disk: 4.8GB  Speed: fast
+    "reasoning": {
+        "name":    "Llama-3.2-3B — Reasoning Brain",
+        "file":    "llama3-reasoning.gguf",
+        "url":     "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q8_0.gguf",
+        "size_gb": 3.4,
+        "role":    "Main reasoning — plans and decides",
+        "ram_mb":  512,
     },
-    "wikipedia_engineering": {
-        "url": "https://en.wikipedia.org/wiki/",
-        "type": "wiki",
-        "topics": [
-            "Programmable_logic_controller",
-            "Ladder_logic",
-            "Industrial_automation",
-            "SCADA",
-            "PID_controller",
-            "Safety_instrumented_system",
-            "Distributed_control_system",
-            "Human_machine_interface",
-            "Modbus",
-            "Profibus",
-            "EtherNet/IP",
-            "IEC_61131-3",
-        ],
+
+    # ── 2. CODE BRAIN ─────────────────────────────────
+    # Best for: writing Python, ladder logic, scripts
+    # RAM: 512MB  Disk: 4.8GB  Speed: fast
+    "coder": {
+        "name":    "DeepSeek-Coder-1.3B — Code Brain",
+        "file":    "deepseek-coder.gguf",
+        "url":     "https://huggingface.co/TheBloke/deepseek-coder-1.3b-instruct-GGUF/resolve/main/deepseek-coder-1.3b-instruct.Q8_0.gguf",
+        "size_gb": 1.4,
+        "role":    "Writes Python, ladder logic, scripts",
+        "ram_mb":  256,
+    },
+
+    # ── 3. ENGINEERING BRAIN ──────────────────────────
+    # Best for: PLC, industrial automation, SCADA
+    # RAM: 1GB  Disk: 8GB  Speed: medium
+    "engineer": {
+        "name":    "Mistral-7B — Engineering Brain",
+        "file":    "mistral7b-engineering.gguf",
+        "url":     "https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2.Q4_K_M.gguf",
+        "size_gb": 4.4,
+        "role":    "PLC engineering, industrial automation",
+        "ram_mb":  512,
+    },
+
+    # ── 4. VISION BRAIN ───────────────────────────────
+    # Best for: reading screens, OCR, UI detection
+    # RAM: 256MB  Disk: 1.5GB  Speed: ultra fast
+    "vision": {
+        "name":    "MobileNet-V3 — Vision Brain",
+        "file":    "vision-model.onnx",
+        "url":     "https://github.com/onnx/models/raw/main/validated/vision/classification/mobilenet/model/mobilenetv3-small-075.onnx",
+        "size_gb": 0.01,
+        "role":    "Screen reading, UI detection, OCR",
+        "ram_mb":  64,
+    },
+
+    # ── 5. FAST REFLEX BRAIN ──────────────────────────
+    # Best for: instant responses, common commands
+    # RAM: 128MB  Disk: 0.8GB  Speed: ultra fast
+    "reflex": {
+        "name":    "Phi-3-Mini — Reflex Brain",
+        "file":    "phi3-mini-reflex.gguf",
+        "url":     "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4.gguf",
+        "size_gb": 2.4,
+        "role":    "Ultra fast reflex — instant responses",
+        "ram_mb":  256,
+    },
+
+    # ── 6. MEMORY BRAIN ───────────────────────────────
+    # Best for: embeddings, semantic search, recall
+    # RAM: 128MB  Disk: 0.5GB  Speed: ultra fast
+    "memory": {
+        "name":    "All-MiniLM — Memory Brain",
+        "file":    "minilm-memory.gguf",
+        "url":     "https://huggingface.co/second-state/All-MiniLM-L6-v2-Embedding-GGUF/resolve/main/all-MiniLM-L6-v2-Q8_0.gguf",
+        "size_gb": 0.04,
+        "role":    "Semantic memory, similarity search",
+        "ram_mb":  64,
+    },
+
+    # ── 7. SAFETY BRAIN ───────────────────────────────
+    # Best for: safety checks, risk assessment
+    # RAM: 512MB  Disk: 4GB  Speed: fast
+    "safety": {
+        "name":    "Gemma-2B — Safety Brain",
+        "file":    "gemma2b-safety.gguf",
+        "url":     "https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q8_0.gguf",
+        "size_gb": 2.5,
+        "role":    "Safety checks, risk assessment, alarms",
+        "ram_mb":  256,
+    },
+
+    # ── 8. DOCUMENTATION BRAIN ────────────────────────
+    # Best for: reading manuals, generating reports
+    # RAM: 1GB  Disk: 8GB  Speed: medium
+    "docs": {
+        "name":    "Qwen2-7B — Documentation Brain",
+        "file":    "qwen2-docs.gguf",
+        "url":     "https://huggingface.co/Qwen/Qwen2-7B-Instruct-GGUF/resolve/main/qwen2-7b-instruct-q4_k_m.gguf",
+        "size_gb": 4.5,
+        "role":    "Reads manuals, writes reports, documentation",
+        "ram_mb":  512,
     },
 }
 
-# ── Built-in knowledge (always installed, no download needed) ──
+# ══════════════════════════════════════════════════════
+# KNOWLEDGE BASE
+# ══════════════════════════════════════════════════════
 BUILTIN_KNOWLEDGE = {
     "plc/ladder_logic.json": {
         "elements": {
-            "NO_contact": "Normally Open — passes power when bit=1",
-            "NC_contact": "Normally Closed — passes power when bit=0",
-            "output_coil": "Sets bit when rung is true",
-            "timer_TON": "On-delay timer — activates after preset time",
-            "timer_TOF": "Off-delay timer — deactivates after preset time",
-            "timer_RTO": "Retentive timer — holds value on power loss",
-            "counter_CTU": "Count up counter",
-            "counter_CTD": "Count down counter",
-            "counter_CTUD": "Count up/down counter",
-            "move_MOV": "Move data from source to destination",
-            "compare_EQU": "Equal — true when A equals B",
-            "compare_NEQ": "Not Equal — true when A not equals B",
-            "compare_GRT": "Greater Than — true when A > B",
-            "compare_LES": "Less Than — true when A < B",
-            "compare_GEQ": "Greater or Equal — true when A >= B",
-            "compare_LEQ": "Less or Equal — true when A <= B",
-            "math_ADD": "Addition — adds two values",
-            "math_SUB": "Subtraction — subtracts two values",
-            "math_MUL": "Multiplication — multiplies two values",
-            "math_DIV": "Division — divides two values",
-            "math_MOD": "Modulo — remainder of division",
-            "math_SQR": "Square root",
-            "math_ABS": "Absolute value",
-            "jump_JMP": "Jump to label in program",
-            "jump_LBL": "Label — destination for JMP",
-            "jump_JSR": "Jump to subroutine",
-            "jump_RET": "Return from subroutine",
-            "file_COP": "Copy file of data",
-            "file_FLL": "Fill file with value",
-            "bit_AND": "Bitwise AND",
-            "bit_OR":  "Bitwise OR",
-            "bit_XOR": "Bitwise XOR",
-            "bit_NOT": "Bitwise NOT",
+            "NO_contact":    "Normally Open — passes power when bit=1",
+            "NC_contact":    "Normally Closed — passes power when bit=0",
+            "output_coil":   "Sets bit when rung is true",
+            "timer_TON":     "On-delay timer",
+            "timer_TOF":     "Off-delay timer",
+            "timer_RTO":     "Retentive timer",
+            "counter_CTU":   "Count up counter",
+            "counter_CTD":   "Count down counter",
+            "compare_EQU":   "Equal comparison",
+            "compare_GRT":   "Greater than",
+            "compare_LES":   "Less than",
+            "math_ADD":      "Addition",
+            "math_SUB":      "Subtraction",
+            "math_MUL":      "Multiplication",
+            "math_DIV":      "Division",
         },
         "safety": {
-            "estop": "Emergency stop — NC contact hardwired in series",
-            "interlock": "Prevents unsafe simultaneous operations",
-            "safety_relay": "Monitors safety circuit integrity",
-            "fault_routine": "Program executed on controller fault",
-            "watchdog": "Timer that resets on healthy scan, faults on miss",
-            "redundancy": "Dual controllers for critical systems",
-            "SIL1": "Safety Integrity Level 1 — low risk reduction",
-            "SIL2": "Safety Integrity Level 2 — medium risk reduction",
-            "SIL3": "Safety Integrity Level 3 — high risk reduction",
-            "LOTO": "Lockout/Tagout — energy isolation procedure",
-        },
-        "scan_cycle": {
-            "input_scan": "Read all input states into memory table",
-            "program_scan": "Execute ladder logic top to bottom left to right",
-            "output_scan": "Write memory states to physical outputs",
-            "housekeeping": "Controller diagnostics communications overhead",
-            "scan_time": "Typical 1-20ms depending on program size",
+            "estop":         "Emergency stop — NC hardwired",
+            "interlock":     "Prevents unsafe operations",
+            "safety_relay":  "Monitors safety circuit",
+            "watchdog":      "Fault on missed scan",
+            "SIL1":          "Low risk reduction",
+            "SIL2":          "Medium risk reduction",
+            "SIL3":          "High risk reduction",
+            "LOTO":          "Lockout/Tagout procedure",
         },
         "controllers": {
-            "Allen_Bradley": "Rockwell Automation — Studio 5000 software",
-            "Siemens": "S7-300 S7-400 S7-1200 S7-1500 — TIA Portal",
-            "Schneider": "Modicon M340 M580 — Unity Pro",
-            "Mitsubishi": "MELSEC series — GX Works",
-            "Omron": "CJ2 NJ NX series — Sysmac Studio",
-            "Beckhoff": "TwinCAT — PC-based control",
-        },
-        "networking": {
-            "Modbus_RTU": "Serial RS-485 master-slave protocol",
-            "Modbus_TCP": "Ethernet version of Modbus",
-            "Profibus": "Siemens process field bus",
-            "Profinet": "Siemens industrial Ethernet",
-            "EtherNet_IP": "Rockwell industrial Ethernet",
-            "DeviceNet": "Low-level device network",
-            "CANopen": "CAN bus application layer",
-            "OPC_UA": "Unified architecture — platform independent",
-        },
-    },
-    "python/patterns.json": {
-        "design_patterns": {
-            "singleton": "One instance only — use for shared resources",
-            "factory": "Create objects without specifying exact class",
-            "observer": "Notify multiple objects of state changes",
-            "strategy": "Swap algorithms at runtime",
-            "module": "Separate concerns into independent files",
-            "decorator": "Add behavior to objects dynamically",
-            "facade": "Simplified interface to complex subsystem",
-            "adapter": "Convert interface to another interface",
-            "command": "Encapsulate request as object",
-            "state": "Object behavior changes with internal state",
-        },
-        "memory_tips": {
-            "generators": "Use yield instead of return for large data",
-            "mmap": "Memory-map large files instead of loading all",
-            "slots": "Use __slots__ to reduce object memory by 40%",
-            "gc": "Call gc.collect() after deleting large objects",
-            "chunks": "Read large files in 4096 byte chunks",
-            "weakref": "Use weakref for cache that can be garbage collected",
-            "array": "Use array module instead of list for numbers",
-            "numpy": "Use numpy arrays for numerical computation",
-        },
-        "best_practices": {
-            "naming": "snake_case variables PascalCase classes UPPER_CASE constants",
-            "errors": "Always use try/except with specific exceptions",
-            "logging": "Use logging module not print for production",
-            "testing": "Write tests before or alongside code — TDD",
-            "comments": "Explain WHY not WHAT in comments",
-            "type_hints": "Use type hints for better code clarity",
-            "docstrings": "Document every public function and class",
-            "pep8": "Follow PEP8 style guide always",
-        },
-        "threading": {
-            "daemon": "Daemon threads die when main thread exits",
-            "lock": "threading.Lock() prevents race conditions",
-            "queue": "queue.Queue() is thread-safe communication",
-            "event": "threading.Event() for signaling between threads",
-            "semaphore": "Limit concurrent access to resource",
+            "Allen_Bradley": "Studio 5000 — RSLogix",
+            "Siemens":       "TIA Portal — S7 series",
+            "Schneider":     "Unity Pro — Modicon",
+            "Mitsubishi":    "GX Works — MELSEC",
+            "Omron":         "Sysmac Studio — NX/NJ",
+            "Beckhoff":      "TwinCAT — PC based",
         },
     },
     "engineering/standards.json": {
         "IEC_61131": {
-            "part1": "General information",
-            "part2": "Equipment requirements and tests",
-            "part3": "Programming languages — LD IL FBD ST SFC",
-            "part4": "User guidelines",
-            "part5": "Communications — function blocks",
-            "part6": "Functional safety",
-            "part7": "Fuzzy control",
-            "part8": "Guidelines for application and implementation",
-            "LD": "Ladder Diagram — graphical relay equivalent",
-            "IL": "Instruction List — assembly-like text",
-            "FBD": "Function Block Diagram — graphical data flow",
-            "ST": "Structured Text — Pascal-like high level",
-            "SFC": "Sequential Function Chart — Grafcet-based",
-        },
-        "ISA_standards": {
-            "ISA5.1": "Instrumentation symbols and identification",
-            "ISA18.2": "Management of alarm systems",
-            "ISA88": "Batch control",
-            "ISA95": "Enterprise-control system integration",
-            "ISA99": "Industrial cybersecurity",
-            "ISA100": "Wireless systems for automation",
+            "LD":  "Ladder Diagram",
+            "FBD": "Function Block Diagram",
+            "ST":  "Structured Text",
+            "IL":  "Instruction List",
+            "SFC": "Sequential Function Chart",
         },
         "safety_standards": {
             "IEC_61508": "Functional safety of E/E/PE systems",
-            "IEC_62061": "Safety of machinery — functional safety",
-            "ISO_13849": "Safety of machinery — safety-related parts",
-            "IEC_61511": "Functional safety — process industry",
-            "NFPA_70E": "Electrical safety in the workplace",
-            "OSHA_1910": "General industry safety standards",
+            "IEC_61511": "Process industry safety",
+            "ISO_13849": "Safety of machinery",
+            "IEC_62061": "Functional safety of machines",
         },
-        "instrumentation": {
-            "4_20mA": "Standard analog signal — 4mA=0% 20mA=100%",
-            "0_10V": "Voltage analog signal",
-            "RTD": "Resistance Temperature Detector — PT100 PT1000",
-            "thermocouple": "Type J K T E — temperature measurement",
-            "pressure_transmitter": "Measures process pressure",
-            "flow_meter": "Measures process flow rate",
-            "level_sensor": "Measures tank or vessel level",
-            "pH_sensor": "Measures acidity alkalinity",
-            "vibration": "Monitors rotating equipment health",
+        "networking": {
+            "Modbus_RTU":  "Serial RS-485",
+            "Modbus_TCP":  "Ethernet Modbus",
+            "Profibus":    "Siemens field bus",
+            "Profinet":    "Siemens Ethernet",
+            "EtherNet_IP": "Rockwell Ethernet",
+            "OPC_UA":      "Universal standard",
         },
     },
-    "engineering/troubleshooting.json": {
-        "plc_faults": {
-            "I/O_fault": "Check wiring, fuse, power supply to field device",
-            "comm_fault": "Check cables, termination resistors, baud rate",
-            "memory_fault": "Clear memory, reload program, check battery",
-            "watchdog_fault": "Program scan too long — optimize code",
-            "power_fault": "Check input voltage, UPS, power supply output",
-            "battery_low": "Replace battery — program memory at risk",
+    "ai/model_routing.json": {
+        "routing_rules": {
+            "code_request":        "coder",
+            "plc_request":         "engineer",
+            "safety_request":      "safety",
+            "screen_request":      "vision",
+            "fast_request":        "reflex",
+            "memory_request":      "memory",
+            "document_request":    "docs",
+            "complex_request":     "reasoning",
         },
-        "ladder_debug": {
-            "rung_false": "Trace from left — find first open element",
-            "output_on": "Check for conflicting outputs same address",
-            "timer_not_timing": "Check enable rung is true continuously",
-            "counter_not_counting": "Check for one-shot on input rung",
-            "forced_IO": "Check for forced I/O — may override logic",
-        },
-        "common_issues": {
-            "noise": "Add RC snubbers, shield cables, separate power",
-            "ground_loop": "Use isolated inputs or signal conditioners",
-            "voltage_drop": "Check wire gauge, connection resistance",
-            "EMI": "Route signal cables away from power cables",
-        },
-    },
-    "ai/machine_learning.json": {
-        "concepts": {
-            "supervised": "Learn from labeled examples",
-            "unsupervised": "Find patterns in unlabeled data",
-            "reinforcement": "Learn from rewards and penalties",
-            "neural_network": "Layers of connected nodes mimicking brain",
-            "transformer": "Attention-based architecture for sequences",
-            "fine_tuning": "Adapt pretrained model to specific task",
-            "inference": "Running model to get predictions",
-            "training": "Adjusting model weights from data",
-        },
-        "optimization": {
-            "quantization": "Reduce model precision — less RAM",
-            "pruning": "Remove unimportant weights — smaller model",
-            "distillation": "Train small model to mimic large model",
-            "mmap_loading": "Load model weights on demand from disk",
-            "batch_size": "Smaller batch = less RAM more time",
-            "gradient_checkpointing": "Trade compute for memory",
-        },
+        "ram_strategy": "Load only active model — unload after use",
+        "disk_strategy": "All models on SSD — mmap access",
     },
 }
 
 
-class BrainInstaller:
+class ProgressBar:
+    def __init__(self, total, label=""):
+        self.total   = total
+        self.current = 0
+        self.label   = label
+
+    def update(self, current):
+        self.current = current
+        pct  = (current / self.total) * 100 if self.total else 0
+        done = int(pct / 2)
+        bar  = "█" * done + "░" * (50 - done)
+        mb_done  = current / (1024*1024)
+        mb_total = self.total / (1024*1024)
+        print(f"\r  [{bar}] {pct:.1f}% ({mb_done:.1f}/{mb_total:.1f}MB)", end="", flush=True)
+
+    def finish(self):
+        print()
+
+
+class MMBAInstaller:
     def __init__(self):
-        self.total_files = 0
-        self.total_size  = 0
-        self.errors      = []
+        self.errors        = []
+        self.downloaded    = []
+        self.skipped       = []
+        self.total_size_gb = 0
 
     def run(self):
         print(BANNER)
         print(f"  System  : {platform.system()} {platform.machine()}")
         print(f"  Python  : {sys.version.split()[0]}")
-        print(f"  Brain   : {BRAIN_PATH.absolute()}")
+        print(f"  Models  : {len(MODELS)} AI brains")
+        total = sum(m["size_gb"] for m in MODELS.values())
+        print(f"  Total   : ~{total:.1f}GB download")
+        print(f"  RAM use : ~2GB max (disk-mapped)")
         print()
 
         steps = [
-            ("Creating brain directories",    self._create_dirs),
-            ("Installing built-in knowledge", self._install_builtin),
-            ("Downloading Wikipedia data",    self._download_wiki),
-            ("Building knowledge index",      self._build_index),
+            ("Creating directories",          self._create_dirs),
+            ("Installing llama.cpp engine",   self._install_llamacpp),
+            ("Installing knowledge base",     self._install_knowledge),
+            ("Downloading AI models",         self._download_models),
+            ("Building model router",         self._build_router),
             ("Verifying installation",        self._verify),
         ]
 
@@ -287,19 +262,19 @@ class BrainInstaller:
                 fn()
                 print(f"  ✓ Done\n")
             except Exception as e:
-                print(f"  ⚠ Warning: {e}\n")
+                print(f"  ⚠ {e}\n")
                 self.errors.append(str(e))
 
-        self._print_summary()
+        self._summary()
+
+    # ── Directories ───────────────────────────────────
 
     def _create_dirs(self):
         dirs = [
-            BRAIN_PATH,
+            MODEL_PATH,
             BRAIN_PATH / "plc",
-            BRAIN_PATH / "python",
             BRAIN_PATH / "engineering",
             BRAIN_PATH / "ai",
-            BRAIN_PATH / "wiki",
             Path("data/knowledge_map"),
             Path("logs"),
         ]
@@ -307,113 +282,157 @@ class BrainInstaller:
             d.mkdir(parents=True, exist_ok=True)
             print(f"  Created: {d}")
 
-    def _install_builtin(self):
+    # ── llama.cpp ─────────────────────────────────────
+
+    def _install_llamacpp(self):
+        try:
+            import llama_cpp
+            print("  llama.cpp already installed.")
+            return
+        except ImportError:
+            pass
+        print("  Installing llama-cpp-python...")
+        subprocess.run([
+            sys.executable, "-m", "pip", "install",
+            "llama-cpp-python", "--quiet"
+        ], check=True)
+        print("  llama.cpp engine ready.")
+
+    # ── Knowledge ─────────────────────────────────────
+
+    def _install_knowledge(self):
         for filename, data in BUILTIN_KNOWLEDGE.items():
             path = BRAIN_PATH / filename
             path.parent.mkdir(parents=True, exist_ok=True)
-            with open(path, "w", encoding="utf-8") as f:
+            with open(path, "w") as f:
                 json.dump(data, f, indent=2)
-            size = path.stat().st_size
-            self.total_size += size
-            self.total_files += 1
-            print(f"  Installed: {filename} ({size/1024:.1f}KB)")
+            print(f"  Installed: {filename}")
 
-    def _download_wiki(self):
-        topics = KNOWLEDGE_SOURCES["wikipedia_engineering"]["topics"]
-        wiki_dir = BRAIN_PATH / "wiki"
-        print(f"  Downloading {len(topics)} Wikipedia articles...")
+    # ── Model Downloader ──────────────────────────────
 
-        for topic in topics:
+    def _download_models(self):
+        total = len(MODELS)
+        for i, (key, model) in enumerate(MODELS.items(), 1):
+            dest = MODEL_PATH / model["file"]
+            print(f"\n  [{i}/{total}] {model['name']}")
+            print(f"         Role  : {model['role']}")
+            print(f"         Size  : {model['size_gb']}GB")
+            print(f"         RAM   : {model['ram_mb']}MB")
+
+            if dest.exists():
+                size_gb = dest.stat().st_size / (1024**3)
+                print(f"         Status: Already downloaded ({size_gb:.2f}GB) ✓")
+                self.skipped.append(key)
+                continue
+
             try:
-                url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{topic}"
-                req = urllib.request.Request(
-                    url,
-                    headers={"User-Agent": "MMBA-Installer/1.0"}
-                )
-                with urllib.request.urlopen(req, timeout=10) as r:
-                    data = json.loads(r.read().decode())
-
-                article = {
-                    "title":   data.get("title", topic),
-                    "summary": data.get("extract", ""),
-                    "url":     data.get("content_urls", {}).get("desktop", {}).get("page", ""),
-                }
-
-                fname = wiki_dir / f"{topic.replace('/', '_')}.json"
-                with open(fname, "w", encoding="utf-8") as f:
-                    json.dump(article, f, indent=2, ensure_ascii=False)
-
-                size = fname.stat().st_size
-                self.total_size += size
-                self.total_files += 1
-                print(f"  ✓ {data.get('title', topic)} ({size/1024:.1f}KB)")
-                time.sleep(0.3)  # Be polite to Wikipedia
-
+                self._download_file(model["url"], dest, model["name"])
+                self.downloaded.append(key)
+                self.total_size_gb += model["size_gb"]
             except Exception as e:
-                print(f"  ⚠ Skipped {topic}: {e}")
+                print(f"\n         ⚠ Failed: {e}")
+                self.errors.append(f"{key}: {e}")
 
-    def _build_index(self):
-        index = {
-            "version":      VERSION,
-            "installed_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "platform":     platform.system(),
-            "domains":      {},
-            "total_files":  0,
-            "total_size_kb": 0,
+    def _download_file(self, url, dest, name):
+        print(f"         Downloading...")
+        bar = None
+
+        def progress(count, block_size, total_size):
+            nonlocal bar
+            if bar is None and total_size > 0:
+                bar = ProgressBar(total_size, name)
+            if bar:
+                bar.update(min(count * block_size, total_size))
+
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "MMBA-Installer/3.0"}
+        )
+        tmp = str(dest) + ".tmp"
+        try:
+            urllib.request.urlretrieve(url, tmp, reporthook=progress)
+            if bar:
+                bar.finish()
+            shutil.move(tmp, dest)
+            size_gb = dest.stat().st_size / (1024**3)
+            print(f"         ✓ Downloaded: {size_gb:.2f}GB")
+        except Exception as e:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+            raise e
+
+    # ── Router ────────────────────────────────────────
+
+    def _build_router(self):
+        router = {
+            "version": VERSION,
+            "models": {},
+            "routing": {
+                "code":        "coder",
+                "python":      "coder",
+                "ladder":      "engineer",
+                "plc":         "engineer",
+                "safety":      "safety",
+                "estop":       "safety",
+                "screen":      "vision",
+                "click":       "vision",
+                "fast":        "reflex",
+                "quick":       "reflex",
+                "remember":    "memory",
+                "search":      "memory",
+                "manual":      "docs",
+                "report":      "docs",
+                "default":     "reasoning",
+            }
         }
+        for key, model in MODELS.items():
+            dest = MODEL_PATH / model["file"]
+            router["models"][key] = {
+                "name":     model["name"],
+                "file":     str(dest.absolute()),
+                "role":     model["role"],
+                "ram_mb":   model["ram_mb"],
+                "ready":    dest.exists(),
+            }
 
-        for domain_dir in BRAIN_PATH.iterdir():
-            if domain_dir.is_dir():
-                files = list(domain_dir.glob("*.json"))
-                domain_size = sum(f.stat().st_size for f in files)
-                index["domains"][domain_dir.name] = {
-                    "files":   [f.name for f in files],
-                    "count":   len(files),
-                    "size_kb": round(domain_size / 1024, 1),
-                }
+        path = Path("data/model_router.json")
+        with open(path, "w") as f:
+            json.dump(router, f, indent=2)
+        print(f"  Router saved: {path}")
 
-        index["total_files"]   = self.total_files
-        index["total_size_kb"] = round(self.total_size / 1024, 1)
-
-        with open(BRAIN_PATH / "index.json", "w") as f:
-            json.dump(index, f, indent=2)
-
-        print(f"  Index built: {self.total_files} files")
+    # ── Verify ────────────────────────────────────────
 
     def _verify(self):
-        required = [
-            BRAIN_PATH / "index.json",
-            BRAIN_PATH / "plc" / "ladder_logic.json",
-            BRAIN_PATH / "python" / "patterns.json",
-            BRAIN_PATH / "engineering" / "standards.json",
-        ]
-        for path in required:
-            if path.exists():
-                print(f"  ✓ {path}")
-            else:
-                print(f"  ✗ MISSING: {path}")
-                self.errors.append(f"Missing: {path}")
+        router_path = Path("data/model_router.json")
+        if router_path.exists():
+            with open(router_path) as f:
+                router = json.load(f)
+            ready = sum(1 for m in router["models"].values() if m["ready"])
+            total = len(router["models"])
+            print(f"  Models ready: {ready}/{total}")
+            for key, m in router["models"].items():
+                status = "✓" if m["ready"] else "✗ not downloaded"
+                print(f"  [{key:10s}] {status} — {m['name']}")
 
-    def _print_summary(self):
-        print("=" * 52)
-        print("  MMBA BRAIN INSTALLATION COMPLETE")
-        print("=" * 52)
-        print(f"  Files installed : {self.total_files}")
-        print(f"  Total size      : {self.total_size/1024:.1f} KB")
-        print(f"  Brain location  : {BRAIN_PATH.absolute()}")
-        print(f"  Errors          : {len(self.errors)}")
-        print("=" * 52)
-        if self.errors:
-            print("  Warnings (non-fatal):")
-            for e in self.errors:
-                print(f"    - {e}")
+    # ── Summary ───────────────────────────────────────
+
+    def _summary(self):
         print()
-        print("  Run MMBA with:")
+        print("═" * 54)
+        print("  MMBA BRAIN INSTALLATION COMPLETE")
+        print("═" * 54)
+        print(f"  Downloaded  : {len(self.downloaded)} models")
+        print(f"  Skipped     : {len(self.skipped)} (already existed)")
+        print(f"  Total size  : {self.total_size_gb:.1f}GB")
+        print(f"  Max RAM use : ~2GB (disk-mapped loading)")
+        print(f"  Errors      : {len(self.errors)}")
+        print("═" * 54)
+        print()
+        print("  Run MMBA:")
         print("  python main.py --mode status")
         print("  python main.py --mode manual")
-        print("=" * 52)
+        print("═" * 54)
 
 
 if __name__ == "__main__":
-    installer = BrainInstaller()
-    installer.run()
+    MMBAInstaller().run()
