@@ -1,0 +1,52 @@
+name: Build MMBA for PC
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+
+    - name: Install dependencies
+      run: pip install pyinstaller psutil
+
+    - name: Build EXE with installer bundled
+      run: |
+        pyinstaller --onefile --console --name MMBA --add-data "installer.py;." main.py
+
+    - name: Upload EXE
+      uses: actions/upload-artifact@v4
+      with:
+        name: MMBA-Windows
+        path: dist/MMBA.exe
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+
+    - name: Install dependencies
+      run: pip install pyinstaller psutil
+
+    - name: Build Linux Binary
+      run: |
+        pyinstaller --onefile --console --name MMBA main.py
+
+    - name: Upload Linux Binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: MMBA-Linux
+        path: dist/MMBA
