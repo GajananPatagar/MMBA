@@ -1,35 +1,15 @@
-name: Build MMBA for PC
+name: Build and Release MMBA
 
 on:
   push:
     branches: [ main ]
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.11"
-
-    - name: Install dependencies
-      run: pip install pyinstaller psutil
-
-    - name: Build EXE with installer bundled
-      run: |
-        pyinstaller --onefile --console --name MMBA --add-data "installer.py;." main.py
-
-    - name: Upload EXE
-      uses: actions/upload-artifact@v4
-      with:
-        name: MMBA-Windows
-        path: dist/MMBA.exe
-
-  build-linux:
+  build-and-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
     steps:
     - uses: actions/checkout@v4
 
@@ -43,10 +23,77 @@ jobs:
 
     - name: Build Linux Binary
       run: |
-        pyinstaller --onefile --console --name MMBA main.py
+        pyinstaller --onefile --console \
+          --name MMBA \
+          --add-data "installer.py:." \
+          --add-data "modules:modules" \
+          --add-data "core:core" \
+          --add-data "config:config" \
+          main.py
+        zip -j MMBA-Linux.zip dist/MMBA install.sh
 
-    - name: Upload Linux Binary
-      uses: actions/upload-artifact@v4
+    - name: Delete old release if exists
+      run: |
+        gh release delete latest --yes 2>/dev/null || true
+        git push --delete origin latest 2>/dev/null || true
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Create Release
+      run: |
+        gh release create latest \
+          --title "MMBA Latest Build" \
+          --notes "Auto-built by GitHub Actions. One command install:
+          
+          Linux/Mac:
+          curl -fsSL https://raw.githubusercontent.com/GajananPatagar/MMBA/main/install.sh | bash
+          
+          Windows:
+          Download MMBA-Windows.zip and run install.bat" \
+          MMBA-Linux.zip
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-windows:
+    runs-on: windows-latest
+    needs: build-and-release
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
       with:
-        name: MMBA-Linux
-        path: dist/MMBA
+        python-version: "3.11"
+
+    - name: Install dependencies
+      run: pip install pyinstaller psutil
+
+    - name: Build Windows EXE
+      run: |
+        pyinstaller --onefile --console `
+          --name MMBA `
+          --add-data "installer.py;." `
+          --add-data "modules;modules" `
+          --add-data "core;core" `
+          --add-data "config;config" `
+          main.py
+
+    - name: Create Windows installer batch
+      run: |
+        echo @echo off > install.bat
+        echo echo MMBA Installing... >> install.bat
+        echo MMBA.exe >> install.bat
+        echo pause >> install.bat
+
+    - name: Zip Windows build
+      run: |
+        Compress-Archive -Path dist\MMBA.exe,install.bat -DestinationPath MMBA-Windows.zip
+
+    - name: Upload Windows to release
+      run: |
+        gh release upload latest MMBA-Windows.zip --clobber
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
